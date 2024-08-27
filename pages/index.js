@@ -6,10 +6,10 @@ export default function HomePage() {
   const [ethWallet, setEthWallet] = useState(undefined);
   const [account, setAccount] = useState(undefined);
   const [store, setStore] = useState(undefined);
-  const [product, setProduct] = useState(undefined);
-  const [balance, setBalance] = useState(undefined);
+  const [storeBalance, setStoreBalance] = useState(undefined); // Store contract balance
+  const [accountBalance, setAccountBalance] = useState(undefined); // User account balance
   const [isHovered, setIsHovered] = useState(false);
-  const [productError, setProductError] = useState(false);
+  const [productError, setProductError] = useState("");
   const [products, setProducts] = useState([]);
 
   const contractAddress = "0x5FbDB2315678afecb367f032d93F642f64180aa3"; // Replace with your contract address
@@ -34,10 +34,11 @@ export default function HomePage() {
     }
   };
 
-  const handleAccount = (accounts) => {
+  const handleAccount = async (accounts) => {
     if (accounts && accounts.length > 0) {
       setAccount(accounts[0]);
       getStoreContract();
+      await fetchAccountBalance(accounts[0]); // Fetch account balance
     } else {
       console.log("No account found");
     }
@@ -59,16 +60,28 @@ export default function HomePage() {
     const storeContract = new ethers.Contract(contractAddress, storeABI, signer);
 
     setStore(storeContract);
-    getBalance(); // Fetch balance on initialization
+    getStoreBalance(); // Fetch store balance on initialization
   };
 
-  const getBalance = async () => {
+  const fetchAccountBalance = async (account) => {
+    if (ethWallet) {
+      const provider = new ethers.providers.Web3Provider(ethWallet);
+      try {
+        const balance = await provider.getBalance(account);
+        setAccountBalance(ethers.utils.formatEther(balance));
+      } catch (error) {
+        console.error("Error fetching account balance:", error);
+      }
+    }
+  };
+
+  const getStoreBalance = async () => {
     if (store && account) {
       try {
-        const storeBalance = await store.getBalance();
-        setBalance(ethers.utils.formatEther(storeBalance));
+        const balance = await store.getBalance();
+        setStoreBalance(ethers.utils.formatEther(balance));
       } catch (error) {
-        console.error("Error fetching balance:", error);
+        console.error("Error fetching store balance:", error);
       }
     }
   };
@@ -80,21 +93,33 @@ export default function HomePage() {
       const price = prompt("Enter product price in ETH:");
       const quantity = prompt("Enter product quantity:");
       const category = prompt("Enter product category:");
-  
+
       if (name && description && price && quantity && category) {
+        // Input validation
+        if (isNaN(price) || parseFloat(price) <= 0) {
+          setProductError("Invalid price value. Please enter a positive number.");
+          return;
+        }
+
+        if (isNaN(quantity) || parseInt(quantity) <= 0) {
+          setProductError("Invalid quantity value. Please enter a positive integer.");
+          return;
+        }
+
         try {
           const tx = await store.addProduct(name, description, ethers.utils.parseEther(price), quantity, category);
           await tx.wait();
           fetchProducts(); // Refresh products after adding a new one
+          setProductError(""); // Clear error message
         } catch (error) {
-          console.error("Error adding product:", error.message);
-          setProductError(true);
-          setTimeout(() => setProductError(false), 5000);
+          console.error("Error adding product:", error);
+          setProductError("Failed to add product. Please check the console for details.");
         }
+      } else {
+        setProductError("All fields are required to add a product.");
       }
     }
   };
-  
 
   const purchaseProduct = async (productId) => {
     if (store) {
@@ -102,7 +127,8 @@ export default function HomePage() {
         const tx = await store.purchaseProduct(productId, { value: ethers.utils.parseEther("1") }); // Assuming a fixed price of 1 ETH
         await tx.wait();
         fetchProducts(); // Refresh products after purchase
-        getBalance(); // Update balance
+        getStoreBalance(); // Update store balance
+        fetchAccountBalance(account); // Update account balance
       } catch (error) {
         console.error("Error purchasing product:", error);
       }
@@ -149,7 +175,8 @@ export default function HomePage() {
     return (
       <div>
         <p>Your Account: {account}</p>
-        <p>Store Balance: {balance} ETH</p>
+        <p>Account Balance: {accountBalance} ETH</p> {/* Display account balance */}
+        <p>Store Balance: {storeBalance} ETH</p>
         <button onClick={addProduct}>Add Product</button>
         <div>
           <h2>Products:</h2>
@@ -168,7 +195,7 @@ export default function HomePage() {
             <p>No products available</p>
           )}
         </div>
-        {productError && <p className="error">Error: Failed to add product</p>}
+        {productError && <p className="error">Error: {productError}</p>}
       </div>
     );
   };
