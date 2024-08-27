@@ -1,52 +1,48 @@
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.26;
 
 contract LocalStore {
-    struct Product {
-        uint id;
-        string name;
-        uint price;
-        uint quantity;
-    }
-
-    mapping(uint => Product) public products;
-    uint public nextProductId;
+    uint256 public nextProductId;
     address public owner;
 
-    event ProductAdded(uint productId, string name, uint price, uint quantity);
-    event ProductPurchased(uint productId, uint quantity);
-
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only the owner can perform this action");
-        _;
+    struct Product {
+        uint256 id;
+        string name;
+        string description;
+        uint256 price;
+        uint256 quantity;
+        string category;
     }
+
+    Product[] public products;
 
     constructor() {
         owner = msg.sender;
+        nextProductId = 1;
     }
 
-    function addProduct(string memory name, uint price, uint quantity) public onlyOwner {
-        products[nextProductId] = Product(nextProductId, name, price, quantity);
-        emit ProductAdded(nextProductId, name, price, quantity);
+    function addProduct(
+        string memory _name,
+        string memory _description,
+        uint256 _price,
+        uint256 _quantity,
+        string memory _category
+    ) public {
+        require(_price > 0, "Price must be greater than zero");
+        require(_quantity > 0, "Quantity must be greater than zero");
+
+        products.push(Product(nextProductId, _name, _description, _price, _quantity, _category));
         nextProductId++;
     }
 
-    function purchaseProduct(uint productId, uint quantity) public payable {
-        Product storage product = products[productId];
-        require(product.id == productId, "Product does not exist");
-        require(product.quantity >= quantity, "Not enough quantity in stock");
-        require(msg.value >= product.price * quantity, "Insufficient Ether sent");
-
-        product.quantity -= quantity;
-        emit ProductPurchased(productId, quantity);
+    function getProduct(uint256 _productId) public view returns (Product memory) {
+        require(_productId > 0 && _productId < nextProductId, "Product not found");
+        return products[_productId - 1];
     }
 
-    function getBalance() public view onlyOwner returns(uint) {
-        return address(this).balance;
-    }
-
-    function withdraw() public onlyOwner {
-        payable(owner).transfer(address(this).balance);
+    function getProducts() public view returns (Product[] memory) {
+        return products;
     }
 }
+
 
